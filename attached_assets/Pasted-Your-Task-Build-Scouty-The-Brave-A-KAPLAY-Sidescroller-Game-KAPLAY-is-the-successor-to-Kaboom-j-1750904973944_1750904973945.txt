@@ -1,0 +1,267 @@
+Your Task: Build "Scouty The Brave" - A KAPLAY Sidescroller Game
+KAPLAY is the successor to Kaboom.js, offering a powerful and beginner-friendly JavaScript game engine for 2D games.
+Getting Started
+bashnpx create-kaplay scouty-sidescroller
+cd scouty-sidescroller
+npm run dev
+For Replit users: Click Run ► then open the web-view. Replit auto-reloads on save, so keep the game tab pinned while developing.
+Game Overview
+Create a sidescroller where Scouty, a brave character, must navigate through obstacles while managing their fear level. The game features parallax scrolling backgrounds and increasing difficulty.
+Core Specifications
+Canvas & Visuals
+
+Size: 800 × 600 px
+Background: Two-layer parallax scrolling (800 × 600 px images)
+Character: Blue rectangle (40 × 40 px) representing Scouty
+Obstacles: Brown rectangles (30 × 50 px)
+Hearts: Red rectangles (20 × 20 px) that reduce fear
+
+Game Configuration
+javascript// Configuration constants
+const CONFIG = {
+    CANVAS_WIDTH: 800,
+    CANVAS_HEIGHT: 600,
+    GRAVITY: 2000,
+    PLAYER_SPEED: 240,
+    JUMP_FORCE: 600,
+    OBSTACLE_SPEED: 200,
+    GROUND_HEIGHT: 100,
+    FEAR_PER_HIT: 15,
+    FEAR_REDUCTION: 25,
+    SPEED_INCREASE: 30,
+    DIFFICULTY_INTERVAL: 15
+};
+Implementation Milestones
+Milestone 0: Basic Setup & Jump Mechanics
+Initialize KAPLAY with proper physics:
+javascriptimport kaplay from "kaplay";
+
+const k = kaplay({
+    width: CONFIG.CANVAS_WIDTH,
+    height: CONFIG.CANVAS_HEIGHT,
+    background: [135, 206, 235],
+    gravity: CONFIG.GRAVITY,
+    debug: true  // Shows collision boxes
+});
+Create the ground with static physics:
+javascriptconst ground = k.add([
+    k.rect(k.width(), CONFIG.GROUND_HEIGHT),
+    k.pos(0, k.height() - CONFIG.GROUND_HEIGHT),
+    k.area(),
+    k.body({ isStatic: true }),  // ✅ Must-have: Static body for ground
+    k.color(34, 139, 34),
+    "ground"
+]);
+Add player with working jump:
+javascriptconst player = k.add([
+    k.rect(40, 40),
+    k.pos(100, 300),
+    k.area(),
+    k.body(),  // Dynamic body for gravity
+    k.color(0, 0, 255),
+    { iscrouching: false },
+    "player"
+]);
+
+// ✅ Must-have: Jump only when grounded
+k.onKeyPress("space", () => {
+    if (player.isGrounded()) {
+        player.jump(CONFIG.JUMP_FORCE);
+    }
+});
+Acceptance Test: Tap space 10× rapidly - Scouty must land every time without double-jumping.
+Milestone 1: Movement & Controls
+Implement continuous movement (not single-press):
+javascript// Continuous left/right movement while key is held
+k.onKeyDown("left", () => {
+    player.move(-CONFIG.PLAYER_SPEED, 0);
+});
+
+k.onKeyDown("right", () => {
+    player.move(CONFIG.PLAYER_SPEED, 0);
+});
+
+// Duck/crouch implementation
+k.onKeyDown("down", () => {
+    if (!player.iscrouching) {
+        player.iscrouching = true;
+        player.height = 20;  // Shrink height
+        player.area.shape.height = 20;  // Update collision box
+    }
+});
+
+k.onKeyRelease("down", () => {
+    if (player.iscrouching) {
+        player.iscrouching = false;
+        player.height = 40;  // Restore height
+        player.area.shape.height = 40;  // Update collision box
+    }
+});
+Milestone 2: Obstacles & Spawning
+Create obstacle spawning system:
+javascriptlet obstacleSpeed = CONFIG.OBSTACLE_SPEED;
+
+function spawnObstacle() {
+    k.add([
+        k.rect(30, 50),
+        k.pos(k.width(), k.height() - CONFIG.GROUND_HEIGHT - 50),
+        k.area(),
+        k.move(k.LEFT, obstacleSpeed),
+        k.color(139, 69, 19),
+        k.offscreen({ distance: 50 }),  // Auto-destroy when off screen
+        "obstacle"
+    ]);
+}
+
+// Spawn every 2 seconds
+k.loop(2, spawnObstacle);
+Milestone 3: UI & Game State
+Add fear meter and score display:
+javascriptlet gameState = {
+    fear: 0,
+    score: 0,
+    gameTime: 0
+};
+
+// UI Elements - use fixed() to prevent camera movement
+const fearLabel = k.add([
+    k.text("Fear: 0%", { size: 24 }),
+    k.pos(20, 20),
+    k.fixed(),
+    "ui"
+]);
+
+const scoreLabel = k.add([
+    k.text("Score: 0", { size: 24 }),
+    k.pos(20, 50),
+    k.fixed(),
+    "ui"
+]);
+
+// Update UI in game loop
+k.onUpdate(() => {
+    gameState.score += k.dt() * 10;  // Score increases over time
+    scoreLabel.text = `Score: ${Math.floor(gameState.score)}`;
+    fearLabel.text = `Fear: ${Math.floor(gameState.fear)}%`;
+    
+    // Check game over
+    if (gameState.fear >= 100) {
+        k.go("gameover");
+    }
+});
+Milestone 4: Collisions & Pickups
+Implement collision handlers:
+javascriptplayer.onCollide("obstacle", (obstacle) => {
+    k.destroy(obstacle);
+    gameState.fear = Math.min(gameState.fear + CONFIG.FEAR_PER_HIT, 100);
+    
+    // Visual feedback
+    k.add([
+        k.text(`+${CONFIG.FEAR_PER_HIT} Fear!`, { size: 16 }),
+        k.pos(player.pos.x, player.pos.y - 30),
+        k.color(255, 0, 0),
+        k.lifespan(1),
+        k.move(k.UP, 50)
+    ]);
+});
+Add heart pickups:
+javascriptfunction spawnHeart() {
+    k.add([
+        k.rect(20, 20),
+        k.pos(k.width(), k.height() - CONFIG.GROUND_HEIGHT - k.rand(60, 200)),
+        k.area(),
+        k.move(k.LEFT, obstacleSpeed),
+        k.color(255, 0, 0),
+        k.offscreen({ distance: 50 }),
+        "heart"
+    ]);
+}
+
+// Spawn hearts less frequently
+k.loop(5, () => {
+    if (k.chance(0.3)) {  // 30% chance
+        spawnHeart();
+    }
+});
+
+player.onCollide("heart", (heart) => {
+    k.destroy(heart);
+    gameState.fear = Math.max(gameState.fear - CONFIG.FEAR_REDUCTION, 0);
+});
+Milestone 5: Difficulty & Game Over
+Increase difficulty over time:
+javascript// Every 15 seconds, increase obstacle speed
+k.loop(CONFIG.DIFFICULTY_INTERVAL, () => {
+    obstacleSpeed += CONFIG.SPEED_INCREASE;
+});
+Create game over scene:
+javascriptk.scene("gameover", () => {
+    k.add([
+        k.text("GAME OVER", { size: 48 }),
+        k.pos(k.center()),
+        k.anchor("center")
+    ]);
+    
+    k.add([
+        k.text(`Final Score: ${Math.floor(gameState.score)}`, { size: 24 }),
+        k.pos(k.center().x, k.center().y + 60),
+        k.anchor("center")
+    ]);
+    
+    k.add([
+        k.text("Press R to restart", { size: 20 }),
+        k.pos(k.center().x, k.center().y + 100),
+        k.anchor("center")
+    ]);
+    
+    k.onKeyPress("r", () => {
+        gameState = { fear: 0, score: 0, gameTime: 0 };
+        obstacleSpeed = CONFIG.OBSTACLE_SPEED;
+        k.go("game");
+    });
+});
+File Organization (Optional)
+For better code organization:
+/src
+  - main.js        // Entry point
+  - config.js      // Game constants
+  - player.js      // Player logic
+  - obstacles.js   // Obstacle & pickup spawning
+  - ui.js          // UI components
+  - scenes.js      // Game scenes
+Stretch Goals
+
+Parallax Background:
+javascriptconst bg1 = k.add([k.sprite("bg-layer1"), k.fixed(), k.scale(1)]);
+const bg2 = k.add([k.sprite("bg-layer2"), k.fixed(), k.scale(1)]);
+// Update positions based on camera
+
+Sound Effects:
+javascriptk.loadSound("jump", "sounds/jump.mp3");
+// In jump handler: k.play("jump");
+
+Sprite Graphics: Replace rectangles with actual sprites once core mechanics work
+Power-ups: Temporary invincibility, slow-motion, etc.
+
+Troubleshooting Tips
+
+Can't see collisions? Keep debug: true in config
+Jump not working? Check browser console for errors
+Objects not moving? Verify k.move() is using correct direction constants
+UI moving with player? Add fixed() component to UI elements
+
+Success Criteria
+✅ Must-have features:
+
+Scouty can move left/right continuously while keys are held
+Jump works reliably (no double-jumps)
+Duck/crouch changes hitbox size
+Obstacles spawn and move left
+Collisions increase fear meter
+Hearts reduce fear
+Game over at 100% fear
+Restart functionality
+Score increases over time
+Difficulty increases every 15 seconds
+
+Start with Milestone 0 and test thoroughly before moving to the next milestone. Good luck building Scouty The Brave!
